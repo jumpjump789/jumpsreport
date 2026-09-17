@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Sarabun', 'Tahoma', sans-serif;
+  margin: 0;
+}
+
+@keyframes st-spin {
+  to { transform: rotate(360deg); }
+}
+.st-spin {
+  animation: st-spin 0.9s linear infinite;
+}
+
+@media print {
+  @page { size: A4; margin: 14mm 16mm; }
+  body * { visibility: hidden; }
+  #print-root, #print-root * { visibility: visible; }
+  #print-root { position: absolute; inset: 0; }
+  .no-print { display: none !important; }
+}

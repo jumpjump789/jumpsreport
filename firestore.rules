@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ไม่มีระบบ login (ใช้คนเดียว) — เปิดให้อ่าน/เขียนได้ทุก collection ในโปรเจกต์นี้
+    // ข้อควรระวัง: ใครก็ตามที่รู้ Firebase config (apiKey ฯลฯ) ของเว็บนี้จะอ่าน/เขียนข้อมูลได้
+    // เพราะไม่มีการยืนยันตัวตนใดๆ เหมาะกับเครื่องมือใช้ภายในที่ไม่เผยแพร่ลิงก์สาธารณะเท่านั้น
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
