@@ -38,7 +38,7 @@ export default function ExpenseReportPage({ searchQuery, onEditRequest }) {
     } catch (err) {
       console.error(err);
       setSyncStatus('error');
-      setSyncMsg('ดึงข้อมูลจากชีตไม่สำเร็จ — ตรวจว่าชีตแชร์เป็น "Anyone with the link" หรือลองปุ่ม "นำเข้าไฟล์" แทน');
+      setSyncMsg(`ดึงข้อมูลจากชีตไม่สำเร็จ: ${err.message || err} — ลองปุ่ม "นำเข้าไฟล์" แทน`);
     }
   }
 
