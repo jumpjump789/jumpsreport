@@ -9,8 +9,7 @@ import { getMeta, setMeta, setDocData } from './data';
    pull in rows beyond that count. Inserting/deleting/reordering rows in the
    sheet will confuse this and is not supported. */
 
-export const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRpG0CX7p7u_KnSvhnFKIH9SXXRnzkCNvHB-2_AZPryg3wbntKvAhXZWsvX5yVSsXzydrS2B9RsSVQJ/pub?gid=0&single=true&output=csv';
-function parseSheetDate(raw) {
+const SHEET_PROXY_URL = '/sheet-csv';
   if (!raw) return '';
   const s = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
