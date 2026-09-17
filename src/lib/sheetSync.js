@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { getMeta, setMeta, setDocData } from './data';
 
 /* Columns in the sheet: A วันที่ · B Invoice · C ร้าน · D โครงการ ·
