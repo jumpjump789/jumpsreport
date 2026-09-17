@@ -1,16 +1,21 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
-// TODO: แทนที่ค่าด้านล่างด้วยค่าจริงจาก Firebase Console ของคุณ
-// (ไปที่ Project settings > General > Your apps > SDK setup and configuration
-//  แล้วเลือก "Config" จะเห็นอ็อบเจกต์นี้พร้อมค่าจริงให้คัดลอกมาแปะได้เลย)
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyCH-pA-qrmGXor-frOB54nFSL6Fu0UE188',
+  authDomain: 'jump-s-report-project.firebaseapp.com',
+  projectId: 'jump-s-report-project',
+  messagingSenderId: '388453873133',
+  appId: '1:388453873133:web:9e08cb189d53951cad23e4',
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// experimentalAutoDetectLongPolling: บางเครือข่าย/ไฟร์วอลล์บล็อกวิธีเชื่อมต่อ
+// ปกติของ Firestore (WebChannel/สตรีมมิง) จนขึ้น "client is offline" ทั้งที่
+// อินเทอร์เน็ตใช้ได้ปกติ — ตั้งค่านี้ให้ Firestore ตรวจจับแล้วสลับไปใช้วิธี
+// เชื่อมต่อสำรอง (long-polling) ให้เองอัตโนมัติเมื่อจำเป็น
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
+
+
