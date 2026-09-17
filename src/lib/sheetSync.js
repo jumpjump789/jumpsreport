@@ -9,6 +9,9 @@ import { getMeta, setMeta, setDocData } from './data';
    pull in rows beyond that count. Inserting/deleting/reordering rows in the
    sheet will confuse this and is not supported. */
 
+// ลิงก์ Google Sheet เดิม (ตอนนี้ไม่ได้ fetch ตรงจากตรงนี้แล้ว เพราะติด CORS —
+// ดึงผ่าน /sheet-csv ซึ่งเป็น Cloudflare Pages Function ที่ทำหน้าที่ดึงแทนเรา
+// ถ้าจะเปลี่ยนไปใช้ชีตอื่น ให้แก้ URL ในไฟล์ functions/sheet-csv.js แทนที่นี่)
 const SHEET_PROXY_URL = '/sheet-csv';
 
 function parseSheetDate(raw) {
@@ -31,7 +34,8 @@ function rowsToExpenseDrafts(rows) {
   }));
 }
 
-// ตัวแปลง CSV เอง (แทนการพึ่ง library เดิม ซึ่งบางครั้งตีความตัวอักษรไทยผิด)
+// ตัวแปลง CSV เอง (แทนการพึ่ง XLSX.read กับสตริง ซึ่งบางครั้งตีความ
+// ตัวอักษรไทย/เครื่องหมายคำพูดในช่องข้อมูลผิดพลาด)
 function parseCsvText(text) {
   const rows = [];
   let row = [];
@@ -77,4 +81,25 @@ export function parseUploadedRows(arrayBuffer) {
 
 export async function importNewSheetRows(rows) {
   const meta = await getMeta('sheet-sync-last-count');
-  const lastCount = (meta &&
+  const lastCount = (meta && typeof meta.value === 'number') ? meta.value : 0;
+  const drafts = rowsToExpenseDrafts(rows);
+  const newDrafts = drafts.slice(lastCount);
+  for (let i = 0; i < newDrafts.length; i++) {
+    const d = newDrafts[i];
+    const id = `sheet-${Date.now()}-${lastCount + i}`;
+    await setDocData('expense_entries', id, {
+      transaction_date: d.transaction_date,
+      receipt_no: d.receipt_no,
+      company_name: d.company_name,
+      project_site: d.project_site,
+      description: d.description,
+      job_type: '',
+      expense_amount: d.expense_amount,
+      income_amount: '',
+      notes: 'นำเข้าจาก Google Sheet',
+      created_at: new Date().toISOString(),
+    });
+  }
+  await setMeta('sheet-sync-last-count', { value: drafts.length });
+  return newDrafts.length;
+}
