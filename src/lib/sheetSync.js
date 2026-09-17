@@ -10,6 +10,8 @@ import { getMeta, setMeta, setDocData } from './data';
    sheet will confuse this and is not supported. */
 
 const SHEET_PROXY_URL = '/sheet-csv';
+
+function parseSheetDate(raw) {
   if (!raw) return '';
   const s = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
