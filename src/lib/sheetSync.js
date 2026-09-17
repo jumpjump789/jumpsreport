@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { getMeta, setMeta, setDocData } from './data';
 
 /* Columns in the sheet: A วันที่ · B Invoice · C ร้าน · D โครงการ ·
@@ -31,13 +30,42 @@ function rowsToExpenseDrafts(rows) {
   }));
 }
 
+// ตัวแปลง CSV เอง (แทนการพึ่ง library เดิม ซึ่งบางครั้งตีความตัวอักษรไทยผิด)
+function parseCsvText(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\r') {
+      // ข้าม รอ \n มาปิดแถว
+    } else if (c === '\n') {
+      row.push(field); field = ''; rows.push(row); row = [];
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.length > 1 || (r[0] || '').trim() !== '');
+}
+
 export async function fetchSheetRows() {
   const resp = await fetch(SHEET_PROXY_URL);
   if (!resp.ok) throw new Error(`sheet fetch failed ${resp.status}`);
   const text = await resp.text();
-  const wb = XLSX.read(text, { type: 'string' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  return parseCsvText(text);
 }
 
 export function parseUploadedRows(arrayBuffer) {
@@ -48,25 +76,4 @@ export function parseUploadedRows(arrayBuffer) {
 
 export async function importNewSheetRows(rows) {
   const meta = await getMeta('sheet-sync-last-count');
-  const lastCount = (meta && typeof meta.value === 'number') ? meta.value : 0;
-  const drafts = rowsToExpenseDrafts(rows);
-  const newDrafts = drafts.slice(lastCount);
-  for (let i = 0; i < newDrafts.length; i++) {
-    const d = newDrafts[i];
-    const id = `sheet-${Date.now()}-${lastCount + i}`;
-    await setDocData('expense_entries', id, {
-      transaction_date: d.transaction_date,
-      receipt_no: d.receipt_no,
-      company_name: d.company_name,
-      project_site: d.project_site,
-      description: d.description,
-      job_type: '',
-      expense_amount: d.expense_amount,
-      income_amount: '',
-      notes: 'นำเข้าจาก Google Sheet',
-      created_at: new Date().toISOString(),
-    });
-  }
-  await setMeta('sheet-sync-last-count', { value: drafts.length });
-  return newDrafts.length;
-}
+  const lastCount = (meta &&
