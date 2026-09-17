@@ -30,7 +30,7 @@ function rowsToExpenseDrafts(rows) {
 }
 
 export async function fetchSheetRows() {
-  const resp = await fetch(SHEET_CSV_URL);
+  const resp = await fetch(SHEET_PROXY_URL);
   if (!resp.ok) throw new Error(`sheet fetch failed ${resp.status}`);
   const text = await resp.text();
   const wb = XLSX.read(text, { type: 'string' });
