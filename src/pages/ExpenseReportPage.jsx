@@ -7,6 +7,7 @@ import { IconAlertCircle, IconLoader } from '../components/Icons';
 import { getAllDocs, getMeta, deleteDocData, setDocData } from '../lib/data';
 import { computeRunningBalances, formatThaiDateShort, formatMoney, downloadBlob } from '../lib/format';
 import { fetchSheetRows, parseUploadedRows, importNewSheetRows } from '../lib/sheetSync';
+import { buildClearanceWorkbook } from '../lib/clearanceDoc';
 
 export default function ExpenseReportPage({ searchQuery }) {
   const [entries, setEntries] = useState([]);
@@ -103,6 +104,34 @@ export default function ExpenseReportPage({ searchQuery }) {
     }
   }
 
+  async function handleClearSelected(selectedRows) {
+    try {
+      // ทำเครื่องหมายเคลียร์แล้วในฐานข้อมูล — ไม่สร้างรายการ "รับ" ใหม่ ไม่กระทบยอดคงเหลือ
+      await Promise.all(selectedRows.map((r) => setDocData('expense_entries', r.id, { ...r, cleared: true })));
+      setEntries((prev) => prev.map((e) => (selectedRows.some((r) => r.id === e.id) ? { ...e, cleared: true } : e)));
+      const wb = buildClearanceWorkbook(selectedRows);
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      downloadBlob(`ใบเคลียร์เงินสำรองสโตร์-${new Date().toISOString().slice(0, 10)}.xlsx`, new Blob([wbout], { type: 'application/octet-stream' }));
+      setErrorMsg('');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('เคลียร์รายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
+
+  async function handleUnclear(id) {
+    try {
+      const record = entries.find((e) => e.id === id);
+      if (!record) return;
+      const updated = { ...record, cleared: false };
+      await setDocData('expense_entries', id, updated);
+      setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('ยกเลิกการเคลียร์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
+
   function handleExport() {
     try {
       const data = filteredRows.slice().reverse().map((r) => ({
@@ -165,7 +194,8 @@ export default function ExpenseReportPage({ searchQuery }) {
         <p className="text-sm py-8 text-center" style={{ color: MUTED }}>กำลังโหลด…</p>
       ) : (
         <ExpenseTable rows={filteredRows} filters={filters} onFilterChange={setFilters} jobTypes={JOB_TYPES}
-          onExport={handleExport} onSaveRow={handleSaveRow} onDelete={handleDelete} totals={totals} />
+          onExport={handleExport} onSaveRow={handleSaveRow} onDelete={handleDelete} totals={totals}
+          onClearSelected={handleClearSelected} onUnclear={handleUnclear} />
       )}
     </div>
   );
