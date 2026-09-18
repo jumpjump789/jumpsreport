@@ -12,18 +12,12 @@ export default function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [openingBalance, setOpeningBalance] = useState(0);
-  const [editingExpense, setEditingExpense] = useState(null);
 
   useEffect(() => {
     getMeta('expense-opening-balance')
       .then((ob) => setOpeningBalance(ob && typeof ob.value === 'number' ? ob.value : 0))
       .catch(() => {});
   }, []);
-
-  function handleEditRequest(record) {
-    setEditingExpense(record);
-    setActivePage('expense');
-  }
 
   return (
     <div className="min-h-screen flex" style={{ background: '#f4f6f9' }}>
@@ -35,9 +29,9 @@ export default function App() {
           {activePage === 'dashboard' && <DashboardPage onNavigate={setActivePage} />}
           {activePage === 'travel' && <TravelReportPage />}
           {activePage === 'expense' && (
-            <ExpensePage editingRecord={editingExpense} onDoneEditing={() => setEditingExpense(null)} onOpeningBalanceChanged={setOpeningBalance} />
+            <ExpensePage editingRecord={null} onDoneEditing={() => {}} onOpeningBalanceChanged={setOpeningBalance} />
           )}
-          {activePage === 'report' && <ExpenseReportPage searchQuery={searchQuery} onEditRequest={handleEditRequest} />}
+          {activePage === 'report' && <ExpenseReportPage searchQuery={searchQuery} />}
         </div>
       </div>
     </div>
