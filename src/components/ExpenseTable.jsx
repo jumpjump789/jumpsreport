@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import Card, { MUTED, BORDER } from './Card';
 import { IconDownload, IconPencil, IconTrash, IconCheckCircle, IconX, IconPlus } from './Icons';
-import { JOB_TYPE_COLUMNS } from './ExpenseForm';
 import { formatThaiDateShort, formatMoney } from '../lib/format';
 
 const EMPTY_DRAFT = {
@@ -131,7 +130,6 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
                 {[
                   { h: 'วันที่', align: 'left' }, { h: 'เลขที่ใบเสร็จ', align: 'left' }, { h: 'ชื่อบริษัท', align: 'left' },
                   { h: 'โครงการ / สถานที่', align: 'left' }, { h: 'คำอธิบายรายการ', align: 'left' },
-                  { h: 'งานขายอะไหล่', align: 'center' }, { h: 'งาน PM', align: 'center' }, { h: 'งานปรับปรุง', align: 'center' }, { h: 'งานเคลม', align: 'center' },
                   { h: 'เบิก', align: 'right' }, { h: 'รับ', align: 'right' }, { h: 'เงินคงเหลือ', align: 'right' }, { h: '', align: 'left' },
                 ].map((col, i) => (
                   <th key={i} className="text-xs font-medium px-3 py-2 whitespace-nowrap" style={{ color: '#64748b', textAlign: col.align }}>{col.h}</th>
@@ -146,7 +144,7 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
                 editingId === r.id ? (
                   <EditableRow key={r.id} draft={draft} setField={setField} onCommit={commitEdit} onCancel={cancelEdit} saving={saving} />
                 ) : (
-                  <tr key={r.id} style={{ borderTop: '1px solid #f1f4f8', background: r.cleared ? '#f0fdfa' : 'transparent' }}>
+                  <tr key={r.id} style={{ borderTop: '1px solid #f1f4f8', background: r.cleared ? '#f0fdfa' : '#fff7ed' }}>
                     <td className="px-2 py-2 text-center">
                       <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleSelect(r.id)} disabled={editingId !== null} />
                     </td>
@@ -163,7 +161,6 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
                     <td className="px-3 py-2 text-xs">{r.company_name || '—'}</td>
                     <td className="px-3 py-2 text-xs">{r.project_site || '—'}</td>
                     <td className="px-3 py-2 text-xs">{r.description || '—'}</td>
-                    {JOB_TYPE_COLUMNS.map((jt) => <td key={jt} className="px-3 py-2 text-xs text-center text-teal-700">{r.job_type === jt ? '✓' : ''}</td>)}
                     <td className="px-3 py-2 text-xs text-right text-amber-700">{r.expense_amount ? formatMoney(r.expense_amount) : '—'}</td>
                     <td className="px-3 py-2 text-xs text-right text-teal-700">{r.income_amount ? formatMoney(r.income_amount) : '—'}</td>
                     <td className={`px-3 py-2 text-xs text-right font-semibold ${r.balance < 0 ? 'text-rose-600' : ''}`} style={r.balance >= 0 ? { color: '#0f172a' } : {}}>{formatMoney(r.balance)}</td>
@@ -177,7 +174,7 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
             </tbody>
             <tfoot>
               <tr style={{ borderTop: '2px solid #e4e8ee' }}>
-                <td colSpan={10} className="px-3 py-2 text-xs font-medium" style={{ color: '#64748b' }}>รวมช่วงที่เลือก</td>
+                <td colSpan={6} className="px-3 py-2 text-xs font-medium" style={{ color: '#64748b' }}>รวมช่วงที่เลือก</td>
                 <td className="px-3 py-2 text-xs text-right font-semibold text-amber-700">{formatMoney(totals.expense)}</td>
                 <td className="px-3 py-2 text-xs text-right font-semibold text-teal-700">{formatMoney(totals.income)}</td>
                 <td className={`px-3 py-2 text-xs text-right font-bold ${totals.currentBalance < 0 ? 'text-rose-600' : ''}`} style={totals.currentBalance >= 0 ? { color: '#0f172a' } : {}}>{formatMoney(totals.currentBalance)}</td>
@@ -215,12 +212,6 @@ function EditableRow({ draft, setField, onCommit, onCancel, saving }) {
         <input type="text" value={draft.description} onChange={(e) => setField('description', e.target.value)}
           className={inputBase} style={{ borderColor: BORDER, minWidth: 120 }} />
       </td>
-      {JOB_TYPE_COLUMNS.map((jt) => (
-        <td key={jt} className="px-1.5 py-1.5 text-center">
-          <input type="checkbox" checked={draft.job_type === jt}
-            onChange={() => setField('job_type', draft.job_type === jt ? '' : jt)} />
-        </td>
-      ))}
       <td className="px-1.5 py-1.5">
         <input type="number" value={draft.expense_amount} onChange={(e) => setField('expense_amount', e.target.value)}
           className={`${inputBase} font-mono text-right`} style={{ borderColor: BORDER, minWidth: 80 }} />
