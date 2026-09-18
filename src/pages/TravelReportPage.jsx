@@ -219,7 +219,7 @@ export default function TravelReportPage() {
     setWordGenerating(true); setErrorMsg('');
     try {
       const html = await buildTravelReportHtml(docNumber, gpsImages, odoImages);
-      downloadBlob(`${buildFileName()}.html`, new Blob([html], { type: 'text/html' }));
+      downloadBlob(`${buildFileName()}.doc`, new Blob(['\ufeff', html], { type: 'application/msword' }));
       // ดาวน์โหลดเป็นไฟล์รายงานเรียบร้อยแล้ว — ลบรูปออกจากหน้าจอทันที ไม่เก็บไว้ที่ไหนต่อ
       setGpsImages([]);
       setOdoImages([]);
