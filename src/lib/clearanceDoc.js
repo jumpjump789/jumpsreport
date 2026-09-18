@@ -9,6 +9,17 @@ function formatDayMonth(dateStr) {
   return `${d.getDate()} ${THAI_MONTHS_ABBR[d.getMonth()]}`;
 }
 
+function toBuddhistYear2(y) {
+  return String((y + 543) % 100).padStart(2, '0');
+}
+
+function formatDayMonthYear(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getDate()} ${THAI_MONTHS_ABBR[d.getMonth()]} ${toBuddhistYear2(d.getFullYear())}`;
+}
+
 export const JOB_TYPE_COLUMNS = ['งานขายอะไหล่', 'งาน PM', 'งานปรับปรุง', 'งานเคลม'];
 
 // สร้างไฟล์ Excel "ใบเคลียร์เงินสำรองสโตร์" ตามแบบฟอร์มจริงของบริษัท (DTG-66) —
@@ -36,7 +47,7 @@ export function buildClearanceWorkbook(rows) {
   const dataStartRow = aoa.length; // 0-indexed row of first data row
   sorted.forEach((r) => {
     aoa.push([
-      formatDayMonth(r.transaction_date),
+      formatDayMonthYear(r.transaction_date),
       r.receipt_no || '',
       r.company_name || '',
       r.project_site || '',
