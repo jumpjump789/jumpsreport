@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Card, { MUTED, BORDER } from './Card';
 import { IconDownload, IconPencil, IconTrash, IconCheckCircle, IconX, IconPlus } from './Icons';
 import { JOB_TYPE_COLUMNS } from './ExpenseForm';
@@ -11,10 +11,12 @@ const EMPTY_DRAFT = {
 
 const inputBase = "w-full rounded-[6px] border px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500";
 
-export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, onExport, onSaveRow, onDelete, totals }) {
+export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, onExport, onSaveRow, onDelete, totals, onClearSelected, onUnclear }) {
   const [editingId, setEditingId] = useState(null); // row id, or 'NEW'
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [clearing, setClearing] = useState(false);
 
   function startEdit(row) {
     setEditingId(row.id);
@@ -39,6 +41,7 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
         transaction_date: draft.transaction_date, receipt_no: draft.receipt_no, company_name: draft.company_name,
         project_site: draft.project_site, description: draft.description, job_type: draft.job_type,
         expense_amount: draft.expense_amount, income_amount: draft.income_amount, notes: draft.notes || '',
+        cleared: draft.cleared || false,
         created_at: draft.created_at || new Date().toISOString(),
       };
       await onSaveRow(record);
@@ -50,6 +53,28 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
 
   function setField(key, value) {
     setDraft((d) => ({ ...d, [key]: value }));
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const selectedRows = useMemo(() => rows.filter((r) => selectedIds.has(r.id)), [rows, selectedIds]);
+  const selectedTotal = useMemo(() => selectedRows.reduce((s, r) => s + (parseFloat(r.expense_amount) || 0), 0), [selectedRows]);
+
+  async function handleClear() {
+    if (selectedRows.length === 0) return;
+    setClearing(true);
+    try {
+      await onClearSelected(selectedRows);
+      setSelectedIds(new Set());
+    } finally {
+      setClearing(false);
+    }
   }
 
   return (
@@ -81,15 +106,28 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
         </div>
       </div>
 
-      <p className="text-xs mb-2" style={{ color: MUTED }}>คลิกไอคอนดินสอที่แถวเพื่อแก้ไขตรงในตารางได้เลย (เหมือน Excel) — กด ✓ เพื่อบันทึก หรือ ✕ เพื่อยกเลิก</p>
+      {selectedRows.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] px-3 py-2" style={{ background: '#f0fdfa', border: '1px solid #99f6e4' }}>
+          <p className="text-xs" style={{ color: '#0f766e' }}>
+            เลือกแล้ว {selectedRows.length} รายการ — รวมเบิก ฿{formatMoney(selectedTotal)}
+          </p>
+          <button onClick={handleClear} disabled={clearing}
+            className="text-xs bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-[9px] px-3 py-1.5 font-medium">
+            {clearing ? 'กำลังสร้างใบเคลียร์…' : 'เคลียร์รายการที่เลือก'}
+          </button>
+        </div>
+      )}
+
+      <p className="text-xs mb-2" style={{ color: MUTED }}>คลิกไอคอนดินสอที่แถวเพื่อแก้ไขตรงในตารางได้เลย (เหมือน Excel) — ติ๊กช่องซ้ายสุดเพื่อเลือกรายการไปเคลียร์</p>
 
       {rows.length === 0 && editingId !== 'NEW' ? (
         <div className="text-center py-12 text-sm" style={{ color: MUTED }}>ยังไม่มีรายการในช่วงที่เลือก</div>
       ) : (
         <div style={{ overflow: 'auto' }}>
-          <table style={{ minWidth: 1180, width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ minWidth: 1230, width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8fafc' }}>
+                <th className="px-2 py-2"></th>
                 {[
                   { h: 'วันที่', align: 'left' }, { h: 'เลขที่ใบเสร็จ', align: 'left' }, { h: 'ชื่อบริษัท', align: 'left' },
                   { h: 'โครงการ / สถานที่', align: 'left' }, { h: 'คำอธิบายรายการ', align: 'left' },
@@ -102,14 +140,25 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
             </thead>
             <tbody>
               {editingId === 'NEW' && (
-                <EditableRow draft={draft} setField={setField} onCommit={commitEdit} onCancel={cancelEdit} saving={saving} isNew />
+                <EditableRow draft={draft} setField={setField} onCommit={commitEdit} onCancel={cancelEdit} saving={saving} />
               )}
               {rows.map((r) => (
                 editingId === r.id ? (
                   <EditableRow key={r.id} draft={draft} setField={setField} onCommit={commitEdit} onCancel={cancelEdit} saving={saving} />
                 ) : (
-                  <tr key={r.id} style={{ borderTop: '1px solid #f1f4f8' }}>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">{formatThaiDateShort(r.transaction_date)}</td>
+                  <tr key={r.id} style={{ borderTop: '1px solid #f1f4f8', background: r.cleared ? '#f0fdfa' : 'transparent' }}>
+                    <td className="px-2 py-2 text-center">
+                      <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleSelect(r.id)} disabled={editingId !== null} />
+                    </td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">
+                      {formatThaiDateShort(r.transaction_date)}
+                      {r.cleared && (
+                        <button onClick={() => onUnclear(r.id)} title="เคลียร์แล้ว — คลิกเพื่อยกเลิก"
+                          className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: '#ccfbf1', color: '#0f766e' }}>
+                          <IconCheckCircle size={9} /> เคลียร์แล้ว
+                        </button>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-xs font-mono">{r.receipt_no || '—'}</td>
                     <td className="px-3 py-2 text-xs">{r.company_name || '—'}</td>
                     <td className="px-3 py-2 text-xs">{r.project_site || '—'}</td>
@@ -128,7 +177,7 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
             </tbody>
             <tfoot>
               <tr style={{ borderTop: '2px solid #e4e8ee' }}>
-                <td colSpan={9} className="px-3 py-2 text-xs font-medium" style={{ color: '#64748b' }}>รวมช่วงที่เลือก</td>
+                <td colSpan={10} className="px-3 py-2 text-xs font-medium" style={{ color: '#64748b' }}>รวมช่วงที่เลือก</td>
                 <td className="px-3 py-2 text-xs text-right font-semibold text-amber-700">{formatMoney(totals.expense)}</td>
                 <td className="px-3 py-2 text-xs text-right font-semibold text-teal-700">{formatMoney(totals.income)}</td>
                 <td className={`px-3 py-2 text-xs text-right font-bold ${totals.currentBalance < 0 ? 'text-rose-600' : ''}`} style={totals.currentBalance >= 0 ? { color: '#0f172a' } : {}}>{formatMoney(totals.currentBalance)}</td>
@@ -145,6 +194,7 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
 function EditableRow({ draft, setField, onCommit, onCancel, saving }) {
   return (
     <tr style={{ borderTop: '1px solid #f1f4f8', background: '#f0fdfa' }}>
+      <td className="px-2 py-2"></td>
       <td className="px-1.5 py-1.5">
         <input type="date" value={draft.transaction_date} onChange={(e) => setField('transaction_date', e.target.value)}
           className={inputBase} style={{ borderColor: BORDER }} />
