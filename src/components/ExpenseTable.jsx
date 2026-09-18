@@ -1,9 +1,57 @@
+import { useState } from 'react';
 import Card, { MUTED, BORDER } from './Card';
-import { IconDownload, IconPencil, IconTrash } from './Icons';
+import { IconDownload, IconPencil, IconTrash, IconCheckCircle, IconX, IconPlus } from './Icons';
 import { JOB_TYPE_COLUMNS } from './ExpenseForm';
 import { formatThaiDateShort, formatMoney } from '../lib/format';
 
-export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, onExport, onEdit, onDelete, totals }) {
+const EMPTY_DRAFT = {
+  transaction_date: '', receipt_no: '', company_name: '', project_site: '',
+  description: '', job_type: '', expense_amount: '', income_amount: '', notes: '',
+};
+
+const inputBase = "w-full rounded-[6px] border px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500";
+
+export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, onExport, onSaveRow, onDelete, totals }) {
+  const [editingId, setEditingId] = useState(null); // row id, or 'NEW'
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
+  const [saving, setSaving] = useState(false);
+
+  function startEdit(row) {
+    setEditingId(row.id);
+    setDraft({ ...EMPTY_DRAFT, ...row });
+  }
+
+  function startNew() {
+    setEditingId('NEW');
+    setDraft({ ...EMPTY_DRAFT, transaction_date: new Date().toISOString().slice(0, 10) });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setDraft(EMPTY_DRAFT);
+  }
+
+  async function commitEdit() {
+    setSaving(true);
+    try {
+      const record = {
+        id: editingId === 'NEW' ? `manual-${Date.now()}` : editingId,
+        transaction_date: draft.transaction_date, receipt_no: draft.receipt_no, company_name: draft.company_name,
+        project_site: draft.project_site, description: draft.description, job_type: draft.job_type,
+        expense_amount: draft.expense_amount, income_amount: draft.income_amount, notes: draft.notes || '',
+        created_at: draft.created_at || new Date().toISOString(),
+      };
+      await onSaveRow(record);
+      cancelEdit();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function setField(key, value) {
+    setDraft((d) => ({ ...d, [key]: value }));
+  }
+
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -23,12 +71,19 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
             <option value="">ประเภทงาน: ทั้งหมด</option>
             {jobTypes.map((j) => <option key={j} value={j}>{j}</option>)}
           </select>
+          <button onClick={startNew} disabled={editingId !== null}
+            className="text-xs bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white rounded-[9px] px-3 py-1.5 flex items-center gap-1">
+            <IconPlus size={12} /> เพิ่มแถว
+          </button>
           <button onClick={onExport} className="text-xs border rounded-[9px] px-3 py-1.5 hover:opacity-80 flex items-center gap-1" style={{ borderColor: BORDER }}>
             <IconDownload size={12} /> ดาวน์โหลด Excel
           </button>
         </div>
       </div>
-      {rows.length === 0 ? (
+
+      <p className="text-xs mb-2" style={{ color: MUTED }}>คลิกไอคอนดินสอที่แถวเพื่อแก้ไขตรงในตารางได้เลย (เหมือน Excel) — กด ✓ เพื่อบันทึก หรือ ✕ เพื่อยกเลิก</p>
+
+      {rows.length === 0 && editingId !== 'NEW' ? (
         <div className="text-center py-12 text-sm" style={{ color: MUTED }}>ยังไม่มีรายการในช่วงที่เลือก</div>
       ) : (
         <div style={{ overflow: 'auto' }}>
@@ -46,22 +101,29 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
               </tr>
             </thead>
             <tbody>
+              {editingId === 'NEW' && (
+                <EditableRow draft={draft} setField={setField} onCommit={commitEdit} onCancel={cancelEdit} saving={saving} isNew />
+              )}
               {rows.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #f1f4f8' }}>
-                  <td className="px-3 py-2 text-xs whitespace-nowrap">{formatThaiDateShort(r.transaction_date)}</td>
-                  <td className="px-3 py-2 text-xs font-mono">{r.receipt_no || '—'}</td>
-                  <td className="px-3 py-2 text-xs">{r.company_name || '—'}</td>
-                  <td className="px-3 py-2 text-xs">{r.project_site || '—'}</td>
-                  <td className="px-3 py-2 text-xs">{r.description || '—'}</td>
-                  {JOB_TYPE_COLUMNS.map((jt) => <td key={jt} className="px-3 py-2 text-xs text-center text-teal-700">{r.job_type === jt ? '✓' : ''}</td>)}
-                  <td className="px-3 py-2 text-xs text-right text-amber-700">{r.expense_amount ? formatMoney(r.expense_amount) : '—'}</td>
-                  <td className="px-3 py-2 text-xs text-right text-teal-700">{r.income_amount ? formatMoney(r.income_amount) : '—'}</td>
-                  <td className={`px-3 py-2 text-xs text-right font-semibold ${r.balance < 0 ? 'text-rose-600' : ''}`} style={r.balance >= 0 ? { color: '#0f172a' } : {}}>{formatMoney(r.balance)}</td>
-                  <td className="px-3 py-2 text-xs whitespace-nowrap">
-                    <button onClick={() => onEdit(r)} className="hover:text-teal-700 mr-2" style={{ color: MUTED }}><IconPencil size={13} /></button>
-                    <button onClick={() => onDelete(r.id)} className="hover:text-rose-600" style={{ color: MUTED }}><IconTrash size={13} /></button>
-                  </td>
-                </tr>
+                editingId === r.id ? (
+                  <EditableRow key={r.id} draft={draft} setField={setField} onCommit={commitEdit} onCancel={cancelEdit} saving={saving} />
+                ) : (
+                  <tr key={r.id} style={{ borderTop: '1px solid #f1f4f8' }}>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">{formatThaiDateShort(r.transaction_date)}</td>
+                    <td className="px-3 py-2 text-xs font-mono">{r.receipt_no || '—'}</td>
+                    <td className="px-3 py-2 text-xs">{r.company_name || '—'}</td>
+                    <td className="px-3 py-2 text-xs">{r.project_site || '—'}</td>
+                    <td className="px-3 py-2 text-xs">{r.description || '—'}</td>
+                    {JOB_TYPE_COLUMNS.map((jt) => <td key={jt} className="px-3 py-2 text-xs text-center text-teal-700">{r.job_type === jt ? '✓' : ''}</td>)}
+                    <td className="px-3 py-2 text-xs text-right text-amber-700">{r.expense_amount ? formatMoney(r.expense_amount) : '—'}</td>
+                    <td className="px-3 py-2 text-xs text-right text-teal-700">{r.income_amount ? formatMoney(r.income_amount) : '—'}</td>
+                    <td className={`px-3 py-2 text-xs text-right font-semibold ${r.balance < 0 ? 'text-rose-600' : ''}`} style={r.balance >= 0 ? { color: '#0f172a' } : {}}>{formatMoney(r.balance)}</td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">
+                      <button onClick={() => startEdit(r)} disabled={editingId !== null} className="hover:text-teal-700 mr-2 disabled:opacity-30" style={{ color: MUTED }}><IconPencil size={13} /></button>
+                      <button onClick={() => onDelete(r.id)} disabled={editingId !== null} className="hover:text-rose-600 disabled:opacity-30" style={{ color: MUTED }}><IconTrash size={13} /></button>
+                    </td>
+                  </tr>
+                )
               ))}
             </tbody>
             <tfoot>
@@ -77,5 +139,51 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
         </div>
       )}
     </Card>
+  );
+}
+
+function EditableRow({ draft, setField, onCommit, onCancel, saving }) {
+  return (
+    <tr style={{ borderTop: '1px solid #f1f4f8', background: '#f0fdfa' }}>
+      <td className="px-1.5 py-1.5">
+        <input type="date" value={draft.transaction_date} onChange={(e) => setField('transaction_date', e.target.value)}
+          className={inputBase} style={{ borderColor: BORDER }} />
+      </td>
+      <td className="px-1.5 py-1.5">
+        <input type="text" value={draft.receipt_no} onChange={(e) => setField('receipt_no', e.target.value)}
+          className={`${inputBase} font-mono`} style={{ borderColor: BORDER }} />
+      </td>
+      <td className="px-1.5 py-1.5">
+        <input type="text" value={draft.company_name} onChange={(e) => setField('company_name', e.target.value)}
+          className={inputBase} style={{ borderColor: BORDER, minWidth: 110 }} />
+      </td>
+      <td className="px-1.5 py-1.5">
+        <input type="text" value={draft.project_site} onChange={(e) => setField('project_site', e.target.value)}
+          className={inputBase} style={{ borderColor: BORDER, minWidth: 100 }} />
+      </td>
+      <td className="px-1.5 py-1.5">
+        <input type="text" value={draft.description} onChange={(e) => setField('description', e.target.value)}
+          className={inputBase} style={{ borderColor: BORDER, minWidth: 120 }} />
+      </td>
+      {JOB_TYPE_COLUMNS.map((jt) => (
+        <td key={jt} className="px-1.5 py-1.5 text-center">
+          <input type="checkbox" checked={draft.job_type === jt}
+            onChange={() => setField('job_type', draft.job_type === jt ? '' : jt)} />
+        </td>
+      ))}
+      <td className="px-1.5 py-1.5">
+        <input type="number" value={draft.expense_amount} onChange={(e) => setField('expense_amount', e.target.value)}
+          className={`${inputBase} font-mono text-right`} style={{ borderColor: BORDER, minWidth: 80 }} />
+      </td>
+      <td className="px-1.5 py-1.5">
+        <input type="number" value={draft.income_amount} onChange={(e) => setField('income_amount', e.target.value)}
+          className={`${inputBase} font-mono text-right`} style={{ borderColor: BORDER, minWidth: 80 }} />
+      </td>
+      <td className="px-1.5 py-1.5 text-xs text-right" style={{ color: MUTED }}>คำนวณอัตโนมัติ</td>
+      <td className="px-1.5 py-1.5 whitespace-nowrap">
+        <button onClick={onCommit} disabled={saving} className="text-teal-700 hover:text-teal-900 mr-2 disabled:opacity-40"><IconCheckCircle size={15} /></button>
+        <button onClick={onCancel} disabled={saving} className="text-slate-400 hover:text-rose-600 disabled:opacity-40"><IconX size={15} /></button>
+      </td>
+    </tr>
   );
 }
