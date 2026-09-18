@@ -23,3 +23,4 @@ export const IconBell = (p) => <Icon {...p}><path d="M6 10C6 6 8.5 4 12 4C15.5 4
 export const IconCar = (p) => <Icon {...p}><path d="M4 16L5.5 10C5.8 9 6.7 8 8 8H16C17.3 8 18.2 9 18.5 10L20 16" /><rect x="3" y="16" width="18" height="4" rx="1" /><circle cx="7.5" cy="20" r="1.3" /><circle cx="16.5" cy="20" r="1.3" /></Icon>;
 export const IconReceipt = (p) => <Icon {...p}><path d="M7 3H17V21L15 19.5L13 21L11 19.5L9 21L7 19.5Z" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="9" y1="12" x2="15" y2="12" /></Icon>;
 export const IconPencil = (p) => <Icon {...p}><path d="M4 20L4.7 16.5L15 6.2C15.5 5.7 16.3 5.7 16.8 6.2L17.8 7.2C18.3 7.7 18.3 8.5 17.8 9L7.5 19.3L4 20Z" /></Icon>;
+export const IconPlus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>;
