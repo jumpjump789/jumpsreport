@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import Card, { MUTED, BORDER } from '../components/Card';
 import ExpenseTable from '../components/ExpenseTable';
-import { JOB_TYPES } from '../components/ExpenseForm';
+import ExpenseForm, { JOB_TYPES } from '../components/ExpenseForm';
 import { IconAlertCircle, IconLoader } from '../components/Icons';
-import { getAllDocs, getMeta, deleteDocData } from '../lib/data';
+import { getAllDocs, getMeta, deleteDocData, setDocData } from '../lib/data';
 import { computeRunningBalances, formatThaiDateShort, formatMoney, downloadBlob } from '../lib/format';
 import { fetchSheetRows, parseUploadedRows, importNewSheetRows } from '../lib/sheetSync';
 
-export default function ExpenseReportPage({ searchQuery, onEditRequest }) {
+export default function ExpenseReportPage({ searchQuery }) {
   const [entries, setEntries] = useState([]);
   const [opening, setOpening] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -16,6 +16,8 @@ export default function ExpenseReportPage({ searchQuery, onEditRequest }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [syncStatus, setSyncStatus] = useState('idle');
   const [syncMsg, setSyncMsg] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
   const fileInputRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -85,9 +87,33 @@ export default function ExpenseReportPage({ searchQuery, onEditRequest }) {
     try {
       await deleteDocData('expense_entries', id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+      if (editingRecord && editingRecord.id === id) { setEditingRecord(null); setShowForm(false); }
     } catch (err) {
       console.error(err);
       setErrorMsg('ลบรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
+
+  function handleEditRow(record) {
+    setEditingRecord(record);
+    setShowForm(true);
+  }
+
+  function handleAddNew() {
+    setEditingRecord(null);
+    setShowForm(true);
+  }
+
+  async function handleFormSaved(record) {
+    try {
+      await setDocData('expense_entries', record.id, record);
+      setEntries((prev) => [...prev.filter((e) => e.id !== record.id), record]);
+      setEditingRecord(null);
+      setShowForm(false);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('บันทึกรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+      throw err;
     }
   }
 
@@ -121,10 +147,29 @@ export default function ExpenseReportPage({ searchQuery, onEditRequest }) {
 
   return (
     <div>
-      <div className="mb-5">
-        <h1 className="text-lg font-semibold" style={{ color: '#0f172a' }}>รายงาน</h1>
-        <p className="text-xs mt-0.5" style={{ color: MUTED }}>ตารางสรุปรายรับ-จ่ายทั้งหมด กรองตามช่วงวันที่/ประเภทงาน และดาวน์โหลดเป็น Excel ได้</p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold" style={{ color: '#0f172a' }}>รายงาน</h1>
+          <p className="text-xs mt-0.5" style={{ color: MUTED }}>ตารางสรุปรายรับ-จ่ายทั้งหมด กรองตามช่วงวันที่/ประเภทงาน และดาวน์โหลดเป็น Excel ได้</p>
+        </div>
+        {!showForm && (
+          <button onClick={handleAddNew} className="text-sm bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-2 rounded-[10px] font-medium">
+            + เพิ่มรายการใหม่
+          </button>
+        )}
       </div>
+
+      {showForm && (
+        <div className="mb-5 max-w-xl">
+          <ExpenseForm editing={editingRecord} onSaved={handleFormSaved}
+            onCancelEdit={() => { setEditingRecord(null); setShowForm(false); }} />
+          {!editingRecord && (
+            <button onClick={() => setShowForm(false)} className="mt-2 text-xs" style={{ color: MUTED }}>
+              ปิดฟอร์ม
+            </button>
+          )}
+        </div>
+      )}
 
       <Card className="p-4 mb-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -153,7 +198,7 @@ export default function ExpenseReportPage({ searchQuery, onEditRequest }) {
         <p className="text-sm py-8 text-center" style={{ color: MUTED }}>กำลังโหลด…</p>
       ) : (
         <ExpenseTable rows={filteredRows} filters={filters} onFilterChange={setFilters} jobTypes={JOB_TYPES}
-          onExport={handleExport} onEdit={onEditRequest} onDelete={handleDelete} totals={totals} />
+          onExport={handleExport} onEdit={handleEditRow} onDelete={handleDelete} totals={totals} />
       )}
     </div>
   );
