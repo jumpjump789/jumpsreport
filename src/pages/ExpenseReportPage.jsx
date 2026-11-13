@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import Card, { MUTED, BORDER } from '../components/Card';
 import ExpenseTable from '../components/ExpenseTable';
+import ReconcileCard from '../components/ReconcileCard';
 import { JOB_TYPES } from '../components/ExpenseForm';
 import { IconAlertCircle, IconLoader } from '../components/Icons';
 import { getAllDocs, getMeta, deleteDocData, setDocData } from '../lib/data';
@@ -188,6 +189,8 @@ export default function ExpenseReportPage({ searchQuery }) {
         </div>
         {syncMsg && <p className={`text-xs mt-2 ${syncStatus === 'error' ? 'text-red-600' : 'text-teal-700'}`}>{syncMsg}</p>}
       </Card>
+
+      {!loading && <ReconcileCard entries={entries} opening={opening} />}
 
       {errorMsg && <div className="mb-4 text-sm bg-red-50 text-red-700 border border-red-200 rounded px-3 py-2 flex items-center gap-2"><IconAlertCircle size={14} /> {errorMsg}</div>}
       {loading ? (

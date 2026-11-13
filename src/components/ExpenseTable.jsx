@@ -73,7 +73,7 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
   }
   function startNew() {
     setEditingId('NEW');
-    setDraft(EMPTY_DRAFT);
+    setDraft({ ...EMPTY_DRAFT, transaction_date: new Date().toISOString().slice(0, 10) });
   }
   function cancelEdit() {
     setEditingId(null);
@@ -86,9 +86,12 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
     setSaving(true);
     try {
       const record = {
-        ...draft,
-        id: editingId === 'NEW' ? undefined : editingId,
+        id: editingId === 'NEW' ? `manual-${Date.now()}` : editingId,
+        transaction_date: draft.transaction_date, receipt_no: draft.receipt_no, company_name: draft.company_name,
+        project_site: draft.project_site, description: draft.description, job_type: draft.job_type,
+        expense_amount: draft.expense_amount, income_amount: draft.income_amount, notes: draft.notes || '',
         cleared: draft.cleared || false,
+        created_at: draft.created_at || new Date().toISOString(),
       };
       await onSaveRow(record);
       cancelEdit();
