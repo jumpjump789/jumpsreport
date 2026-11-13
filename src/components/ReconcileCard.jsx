@@ -19,8 +19,8 @@ function Item({ label, value, hint, strong }) {
   );
 }
 
-export default function ReconcileCard({ entries, opening }) {
-  const r = useMemo(() => computeReconcile(entries, opening), [entries, opening]);
+export default function ReconcileCard({ entries, opening, batches }) {
+  const r = useMemo(() => computeReconcile(entries, opening, batches || []), [entries, opening, batches]);
   const st = STATUS[r.status];
   const sign = r.diff > 0 ? '+' : r.diff < 0 ? '−' : '';
 
@@ -31,6 +31,7 @@ export default function ReconcileCard({ entries, opening }) {
         <Item label="ยอดตั้งต้น" value={r.opening} />
         <Item label="ยอดคงเหลือปัจจุบัน" value={r.currentBalance} hint={`รับรวม ${formatMoney(r.income)} − เบิกรวม ${formatMoney(r.expense)}`} />
         <Item label="เบิกที่ยังไม่เคลียร์" value={r.unclearedExpense} hint={`${r.unclearedCount} รายการ (แถบสีส้ม)`} />
+        <Item label="ล็อตเคลียร์ที่รอรับเงิน" value={r.pendingTotal} hint={`${r.pendingCount} ล็อต`} />
         <Item label="ยอดคาดการณ์หลังเคลียร์" value={r.projected} strong />
       </div>
       <div className="rounded-[10px] px-3 py-2.5" style={{ background: st.bg, border: `1px solid ${st.border}` }}>
@@ -42,6 +43,11 @@ export default function ReconcileCard({ entries, opening }) {
           {r.status === 'over' && `เมื่อเคลียร์ครบ ยอดจะมากกว่าเงินตั้งต้น ฿${formatMoney(r.diff)} (รับเงินมามากกว่ายอดที่เคลียร์แล้ว — ตรวจว่ามีรายการเบิกตกหล่น หรือบันทึกรับซ้ำหรือไม่)`}
           {r.status === 'short' && `เมื่อเคลียร์ครบ ยอดจะน้อยกว่าเงินตั้งต้น ฿${formatMoney(Math.abs(r.diff))} (เคลียร์ไปแล้วแต่ยังไม่ได้รับเงินคืนครบ หรือมีรายจ่ายที่ไม่ได้ส่งเบิก)`}
         </p>
+        {r.unassignedCount > 0 && (
+          <p className="text-xs mt-2" style={{ color: '#b45309' }}>
+            มี {r.unassignedCount} รายการ (฿{formatMoney(r.unassignedTotal)}) ที่เคลียร์แล้วแต่ยังไม่อยู่ในล็อตใด — ติ๊กเลือกแล้วกด "จัดเป็นล็อตรอรับเงิน" เพื่อให้ไม่ถูกนับเป็นยอดหลุด
+          </p>
+        )}
         {r.suspects.length > 0 && (
           <div className="mt-2 text-xs" style={{ color: '#475569' }}>
             <p className="font-medium">รายการที่ยอดเท่าส่วนต่างพอดี (อาจเป็นสาเหตุ):</p>
@@ -52,7 +58,7 @@ export default function ReconcileCard({ entries, opening }) {
         )}
       </div>
       <p className="text-[10px] mt-2" style={{ color: MUTED, borderTop: `1px solid ${BORDER}`, paddingTop: 6 }}>
-        วิธีคิด: ยอดคาดการณ์ = ยอดคงเหลือปัจจุบัน + เบิกที่ยังไม่เคลียร์ · ส่วนต่าง = ยอดคาดการณ์ − ยอดตั้งต้น (= รับทั้งหมด − เบิกที่เคลียร์แล้ว {formatMoney(r.clearedExpense)}) · คิดจากทุกรายการ ไม่ขึ้นกับตัวกรองวันที่
+        วิธีคิด: ยอดคาดการณ์ = ยอดคงเหลือปัจจุบัน + เบิกที่ยังไม่เคลียร์ · ส่วนต่าง = ยอดคาดการณ์ − ยอดตั้งต้น (= รับทั้งหมด − เบิกที่เคลียร์แล้ว {formatMoney(r.clearedExpense)}) + ล็อตรอรับเงิน · คิดจากทุกรายการ ไม่ขึ้นกับตัวกรองวันที่
       </p>
     </Card>
   );

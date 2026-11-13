@@ -27,7 +27,7 @@ const TABLE_MIN_WIDTH = CHECKBOX_W + COLS.reduce((s, c) => s + c.w, 0) + ACTIONS
 
 const ellipsisCell = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
-export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, onExport, onSaveRow, onDelete, totals, onClearSelected, onUnclear }) {
+export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, onExport, onSaveRow, onDelete, totals, onClearSelected, onUnclear, onGroupLegacy }) {
   const [editingId, setEditingId] = useState(null); // id ของแถวที่กำลังแก้ หรือ 'NEW'
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
@@ -114,6 +114,16 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
     [selectedRows]
   );
 
+  async function handleGroupLegacy() {
+    setClearing(true);
+    try {
+      await onGroupLegacy(selectedRows);
+      setSelectedIds(new Set());
+    } finally {
+      setClearing(false);
+    }
+  }
+
   async function handleClear() {
     setClearing(true);
     try {
@@ -157,10 +167,21 @@ export default function ExpenseTable({ rows, filters, onFilterChange, jobTypes, 
           <p className="text-xs font-medium" style={{ color: '#0f766e' }}>
             เลือกแล้ว {selectedRows.length} รายการ — รวมเบิก ฿{formatMoney(selectedTotal)}
           </p>
-          <button onClick={handleClear} disabled={clearing}
-            className="text-xs rounded-[8px] px-3 py-1.5 font-medium text-white disabled:opacity-50" style={{ background: '#0f766e' }}>
-            {clearing ? 'กำลังสร้างไฟล์…' : 'เคลียร์รายการที่เลือก'}
-          </button>
+          {selectedRows.every((r) => !r.cleared) && (
+            <button onClick={handleClear} disabled={clearing}
+              className="text-xs rounded-[8px] px-3 py-1.5 font-medium text-white disabled:opacity-50" style={{ background: '#0f766e' }}>
+              {clearing ? 'กำลังสร้างไฟล์…' : 'เคลียร์รายการที่เลือก'}
+            </button>
+          )}
+          {selectedRows.every((r) => r.cleared && !r.batch_id) && (
+            <button onClick={handleGroupLegacy} disabled={clearing}
+              className="text-xs rounded-[8px] px-3 py-1.5 font-medium text-white disabled:opacity-50" style={{ background: '#b45309' }}>
+              จัดเป็นล็อตรอรับเงิน (รายการที่เคลียร์ไปแล้ว)
+            </button>
+          )}
+          {selectedRows.some((r) => r.cleared && r.batch_id) && selectedRows.some((r) => !r.cleared || !r.batch_id) && (
+            <span className="text-[11px]" style={{ color: '#b45309' }}>เลือกปนกัน — เลือกเฉพาะรายการสีส้ม หรือเฉพาะรายการที่เคลียร์แล้วแต่ยังไม่อยู่ในล็อต</span>
+          )}
         </div>
       )}
 

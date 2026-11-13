@@ -2,11 +2,12 @@
 // สมมติฐาน: รายการ "รับ" = เงินที่ได้รับคืน/เติมเข้ามา, รายการ "เบิก" ที่เคลียร์แล้ว = ส่งเบิกชดเชยไปแล้ว
 // ถ้าเคลียร์ครบและได้เงินคืนครบ  ยอดเงินสดควรกลับมาเท่ายอดตั้งต้น
 //   ยอดคาดการณ์หลังเคลียร์ = ยอดคงเหลือปัจจุบัน + เบิกที่ยังไม่เคลียร์
-//   ส่วนต่าง = ยอดคาดการณ์ − ยอดตั้งต้น = รับทั้งหมด − เบิกที่เคลียร์แล้ว
+//   ส่วนต่างดิบ = ยอดคาดการณ์ − ยอดตั้งต้น = รับทั้งหมด − เบิกที่เคลียร์แล้ว
+//   ส่วนต่างจริง = ส่วนต่างดิบ + ยอดล็อตที่รอรับเงิน (เงินที่กำลังจะเข้า)
 const num = (v) => parseFloat(v) || 0;
 const round2 = (n) => Math.round(n * 100) / 100;
 
-export function computeReconcile(entries, opening) {
+export function computeReconcile(entries, opening, batches = []) {
   const income = entries.reduce((s, e) => s + num(e.income_amount), 0);
   const expense = entries.reduce((s, e) => s + num(e.expense_amount), 0);
   const uncleared = entries.filter((e) => !e.cleared && num(e.expense_amount) > 0);
@@ -16,7 +17,13 @@ export function computeReconcile(entries, opening) {
 
   const currentBalance = round2(opening + income - expense);
   const projected = round2(currentBalance + unclearedExpense);
-  const diff = round2(projected - opening);
+  const rawDiff = round2(projected - opening);
+  // ล็อตที่ส่งเบิกแล้วแต่ยังไม่ได้รับเงินคืน ไม่นับเป็นยอดหลุด
+  const pendingBatches = batches.filter((b) => b.status !== 'received');
+  const pendingTotal = round2(pendingBatches.reduce((s, b) => s + num(b.total), 0));
+  const unassigned = clearedRows.filter((e) => !e.batch_id);
+  const unassignedTotal = round2(unassigned.reduce((s, e) => s + num(e.expense_amount), 0));
+  const diff = round2(rawDiff + pendingTotal);
   const status = Math.abs(diff) < 0.005 ? 'balanced' : diff > 0 ? 'over' : 'short';
 
   // ช่วยไล่หาสาเหตุ: รายการเดี่ยวที่ยอดเท่ากับส่วนต่างพอดี
@@ -30,6 +37,8 @@ export function computeReconcile(entries, opening) {
     opening, income, expense, currentBalance,
     unclearedCount: uncleared.length, unclearedExpense: round2(unclearedExpense),
     clearedCount: clearedRows.length, clearedExpense: round2(clearedExpense),
-    projected, diff, status, suspects,
+    projected, rawDiff, diff, status, suspects,
+    pendingCount: pendingBatches.length, pendingTotal,
+    unassignedCount: unassigned.length, unassignedTotal,
   };
 }

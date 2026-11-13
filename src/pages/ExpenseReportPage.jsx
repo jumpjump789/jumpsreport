@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import Card, { MUTED, BORDER } from '../components/Card';
 import ExpenseTable from '../components/ExpenseTable';
 import ReconcileCard from '../components/ReconcileCard';
+import BatchHistoryCard from '../components/BatchHistoryCard';
 import { JOB_TYPES } from '../components/ExpenseForm';
 import { IconAlertCircle, IconLoader } from '../components/Icons';
 import { getAllDocs, getMeta, deleteDocData, setDocData } from '../lib/data';
@@ -12,6 +13,7 @@ import { buildClearanceWorkbook } from '../lib/clearanceDoc';
 
 export default function ExpenseReportPage({ searchQuery }) {
   const [entries, setEntries] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [opening, setOpening] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', jobType: '' });
@@ -22,8 +24,9 @@ export default function ExpenseReportPage({ searchQuery }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [list, ob] = await Promise.all([getAllDocs('expense_entries'), getMeta('expense-opening-balance')]);
+    const [list, ob, bl] = await Promise.all([getAllDocs('expense_entries'), getMeta('expense-opening-balance'), getAllDocs('clearance_batches')]);
     setEntries(list);
+    setBatches(bl);
     setOpening(ob && typeof ob.value === 'number' ? ob.value : 0);
     setLoading(false);
   }, []);
@@ -105,11 +108,34 @@ export default function ExpenseReportPage({ searchQuery }) {
     }
   }
 
+  // ตัดฟิลด์ที่คำนวณชั่วคราว (balance) ออกก่อนบันทึกลงฐานข้อมูล
+  function stripRow(r) { const { balance, ...rest } = r; return rest; }
+
+  async function createBatch(selectedRows) {
+    const now = new Date();
+    const id = `batch-${now.getTime()}`;
+    const total = selectedRows.reduce((s, r) => s + (parseFloat(r.expense_amount) || 0), 0);
+    const batch = {
+      id, date: now.toISOString().slice(0, 10), created_at: now.toISOString(),
+      total, count: selectedRows.length, row_ids: selectedRows.map((r) => r.id),
+      rows: selectedRows.map((r) => ({
+        id: r.id, transaction_date: r.transaction_date || '', receipt_no: r.receipt_no || '', company_name: r.company_name || '',
+        project_site: r.project_site || '', description: r.description || '', job_type: r.job_type || '',
+        expense_amount: r.expense_amount || '', income_amount: '',
+      })),
+      status: 'pending',
+    };
+    await setDocData('clearance_batches', id, batch);
+    await Promise.all(selectedRows.map((r) => setDocData('expense_entries', r.id, { ...stripRow(r), cleared: true, batch_id: id })));
+    setBatches((prev) => [...prev, batch]);
+    setEntries((prev) => prev.map((e) => (selectedRows.some((r) => r.id === e.id) ? { ...e, cleared: true, batch_id: id } : e)));
+    return batch;
+  }
+
   async function handleClearSelected(selectedRows) {
     try {
-      // ทำเครื่องหมายเคลียร์แล้วในฐานข้อมูล — ไม่สร้างรายการ "รับ" ใหม่ ไม่กระทบยอดคงเหลือ
-      await Promise.all(selectedRows.map((r) => setDocData('expense_entries', r.id, { ...r, cleared: true })));
-      setEntries((prev) => prev.map((e) => (selectedRows.some((r) => r.id === e.id) ? { ...e, cleared: true } : e)));
+      // ทำเครื่องหมายเคลียร์แล้ว + บันทึกเป็นล็อต (สถานะรอรับเงิน) — ยังไม่กระทบยอดคงเหลือจนกว่าจะกด "รับเงินแล้ว"
+      await createBatch(selectedRows);
       const wb = buildClearanceWorkbook(selectedRows);
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       downloadBlob(`ใบเคลียร์เงินสำรองสโตร์-${new Date().toISOString().slice(0, 10)}.xlsx`, new Blob([wbout], { type: 'application/octet-stream' }));
@@ -120,17 +146,85 @@ export default function ExpenseReportPage({ searchQuery }) {
     }
   }
 
+  async function handleGroupLegacy(selectedRows) {
+    try {
+      await createBatch(selectedRows);
+      setErrorMsg('');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('จัดล็อตไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
+
   async function handleUnclear(id) {
     try {
       const record = entries.find((e) => e.id === id);
       if (!record) return;
-      const updated = { ...record, cleared: false };
+      const batch = record.batch_id ? batches.find((b) => b.id === record.batch_id) : null;
+      if (batch && batch.status === 'received') {
+        setErrorMsg('รายการนี้อยู่ในล็อตที่รับเงินแล้ว — กด "ยกเลิกการรับ" ที่ประวัติการเคลียร์ก่อน แล้วค่อยยกเลิกเคลียร์');
+        return;
+      }
+      if (batch) {
+        const rowsLeft = batch.rows.filter((r) => r.id !== id);
+        if (rowsLeft.length === 0) {
+          await deleteDocData('clearance_batches', batch.id);
+          setBatches((prev) => prev.filter((b) => b.id !== batch.id));
+        } else {
+          const nb = { ...batch, rows: rowsLeft, row_ids: rowsLeft.map((r) => r.id), count: rowsLeft.length,
+            total: rowsLeft.reduce((s, r) => s + (parseFloat(r.expense_amount) || 0), 0) };
+          await setDocData('clearance_batches', batch.id, nb);
+          setBatches((prev) => prev.map((b) => (b.id === batch.id ? nb : b)));
+        }
+      }
+      const updated = { ...stripRow(record), cleared: false, batch_id: '' };
       await setDocData('expense_entries', id, updated);
       setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      setErrorMsg('');
     } catch (err) {
       console.error(err);
       setErrorMsg('ยกเลิกการเคลียร์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     }
+  }
+
+  async function handleMarkReceived(batch) {
+    try {
+      const now = new Date();
+      const entry = {
+        id: `recv-${batch.id}`, transaction_date: now.toISOString().slice(0, 10), receipt_no: '', company_name: '', project_site: '',
+        description: `รับเงินคืนจากการเคลียร์ล็อต ${batch.date}`, job_type: '', expense_amount: '', income_amount: String(batch.total),
+        notes: 'สร้างอัตโนมัติจากประวัติการเคลียร์เงิน', batch_id: batch.id, created_at: now.toISOString(),
+      };
+      const nb = { ...batch, status: 'received', received_at: entry.transaction_date, received_entry_id: entry.id };
+      await setDocData('expense_entries', entry.id, entry);
+      await setDocData('clearance_batches', batch.id, nb);
+      setEntries((prev) => [...prev.filter((e) => e.id !== entry.id), entry]);
+      setBatches((prev) => prev.map((b) => (b.id === batch.id ? nb : b)));
+      setErrorMsg('');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('บันทึกการรับเงินไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
+
+  async function handleUndoReceived(batch) {
+    try {
+      const nb = { ...batch, status: 'pending', received_at: '', received_entry_id: '' };
+      if (batch.received_entry_id) await deleteDocData('expense_entries', batch.received_entry_id);
+      await setDocData('clearance_batches', batch.id, nb);
+      setEntries((prev) => prev.filter((e) => e.id !== batch.received_entry_id));
+      setBatches((prev) => prev.map((b) => (b.id === batch.id ? nb : b)));
+      setErrorMsg('');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('ยกเลิกการรับเงินไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  }
+
+  function handleDownloadBatch(batch) {
+    const wb = buildClearanceWorkbook(batch.rows || []);
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    downloadBlob(`ใบเคลียร์เงินสำรองสโตร์-${batch.date}.xlsx`, new Blob([wbout], { type: 'application/octet-stream' }));
   }
 
   function handleExport() {
@@ -190,7 +284,8 @@ export default function ExpenseReportPage({ searchQuery }) {
         {syncMsg && <p className={`text-xs mt-2 ${syncStatus === 'error' ? 'text-red-600' : 'text-teal-700'}`}>{syncMsg}</p>}
       </Card>
 
-      {!loading && <ReconcileCard entries={entries} opening={opening} />}
+      {!loading && <ReconcileCard entries={entries} opening={opening} batches={batches} />}
+      {!loading && <BatchHistoryCard batches={batches} onMarkReceived={handleMarkReceived} onUndoReceived={handleUndoReceived} onDownload={handleDownloadBatch} />}
 
       {errorMsg && <div className="mb-4 text-sm bg-red-50 text-red-700 border border-red-200 rounded px-3 py-2 flex items-center gap-2"><IconAlertCircle size={14} /> {errorMsg}</div>}
       {loading ? (
@@ -198,7 +293,7 @@ export default function ExpenseReportPage({ searchQuery }) {
       ) : (
         <ExpenseTable rows={filteredRows} filters={filters} onFilterChange={setFilters} jobTypes={JOB_TYPES}
           onExport={handleExport} onSaveRow={handleSaveRow} onDelete={handleDelete} totals={totals}
-          onClearSelected={handleClearSelected} onUnclear={handleUnclear} />
+          onClearSelected={handleClearSelected} onUnclear={handleUnclear} onGroupLegacy={handleGroupLegacy} />
       )}
     </div>
   );
