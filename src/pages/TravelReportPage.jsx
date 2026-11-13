@@ -263,14 +263,14 @@ export default function TravelReportPage() {
 
       <div className="no-print flex flex-col md:flex-row gap-6 items-start">
         <Card className="w-full md:w-80 md:shrink-0 p-5 space-y-5">
-          <ImageGallery label="1. รูปหน้าจอ GPS / เส้นทาง" hint="ระยะทาง+เวลา" images={gpsImages}
-            onAdd={(imgs) => setGpsImages([...gpsImages, ...imgs])}
-            onRemove={(i) => setGpsImages(gpsImages.filter((_, idx) => idx !== i))}
-            onRejected={setErrorMsg} />
-          <ImageGallery label="2. รูปเรือนไมล์" hint="รูปแรก=ก่อน / รูปที่สอง=หลัง" images={odoImages}
+          <ImageGallery label="1. รูปเรือนไมล์" hint="รูปแรก=ก่อน / รูปที่สอง=หลัง" images={odoImages}
             maxImages={2} slotLabels={['ก่อน', 'หลัง']}
             onAdd={(imgs) => setOdoImages([...odoImages, ...imgs])}
             onRemove={(i) => setOdoImages(odoImages.filter((_, idx) => idx !== i))}
+            onRejected={setErrorMsg} />
+          <ImageGallery label="2. รูปหน้าจอ GPS / เส้นทาง" hint="ระยะทาง+เวลา" images={gpsImages}
+            onAdd={(imgs) => setGpsImages([...gpsImages, ...imgs])}
+            onRemove={(i) => setGpsImages(gpsImages.filter((_, idx) => idx !== i))}
             onRejected={setErrorMsg} />
           <p className="text-xs" style={{ color: MUTED }}>รูปใช้แค่ตอนสร้างไฟล์ดาวน์โหลดเท่านั้น — ระบบจะลบรูปออกจากหน้านี้ให้อัตโนมัติทันทีหลังกด "ดาวน์โหลด"</p>
           <div className="pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
