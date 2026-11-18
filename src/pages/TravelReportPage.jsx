@@ -24,7 +24,7 @@ async function buildTravelReportHtml(docNumber, gpsImages, odoImages) {
   const odoSizeMap = new Map();
   await Promise.all([odoBefore, odoAfter].filter(Boolean).map(async (src) => {
     const { width, height } = await loadImageNaturalSize(src);
-    odoSizeMap.set(src, fitWithinBox(width, height, 312, 180));
+    odoSizeMap.set(src, fitWithinBox(width, height, 316, 270));
   }));
   const gpsSizeMap = new Map();
   await Promise.all(gpsImages.map(async (src) => {
@@ -37,7 +37,7 @@ async function buildTravelReportHtml(docNumber, gpsImages, odoImages) {
     <td width="50%" style="width:50%;padding:4px;vertical-align:middle;text-align:center;">
       ${img
         ? `<div style="border:1px solid #cbd5e1;background:#f8fafc;padding:6px;"><img src="${img}" width="${dim.width}" height="${dim.height}" style="display:block;margin:0 auto;" /></div>`
-        : `<div style="border:1px dashed #cbd5e1;background:#fbfcfd;height:144px;line-height:144px;color:#94a3b8;font-size:8pt;">ไม่มีรูป</div>`}
+        : `<div style="border:1px dashed #cbd5e1;background:#fbfcfd;height:216px;line-height:216px;color:#94a3b8;font-size:8pt;">ไม่มีรูป</div>`}
     </td>`;
   };
   const odoRow = `<tr>${imgCell(odoBefore, odoSizeMap)}${imgCell(odoAfter, odoSizeMap)}</tr>`;
@@ -58,8 +58,8 @@ async function buildTravelReportHtml(docNumber, gpsImages, odoImages) {
 </body></html>`;
 }
 
-const odoBox = { border: '1px solid #cbd5e1', background: '#f8fafc', height: '38.4mm', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' };
-const odoBoxEmpty = { border: '1px dashed #cbd5e1', background: '#fbfcfd', height: '38.4mm', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '8pt' };
+const odoBox = { border: '1px solid #cbd5e1', background: '#f8fafc', height: '57.6mm', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' };
+const odoBoxEmpty = { border: '1px dashed #cbd5e1', background: '#fbfcfd', height: '57.6mm', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '8pt' };
 const gpsBox = { border: '1px solid #cbd5e1', background: '#f8fafc', height: '61.4mm', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' };
 
 function EvidenceImageSection({ odoBeforeImage, odoAfterImage, gpsImages }) {
