@@ -156,36 +156,47 @@ export default function ExpenseReportPage({ searchQuery }) {
     }
   }
 
-  async function handleUnclear(id) {
+  // ยกเลิกเคลียร์หลายรายการในครั้งเดียว (รายการอาจอยู่คนละล็อตก็ได้)
+  async function handleUnclearMany(ids) {
     try {
-      const record = entries.find((e) => e.id === id);
-      if (!record) return;
-      const batch = record.batch_id ? batches.find((b) => b.id === record.batch_id) : null;
-      if (batch && batch.status === 'received') {
-        setErrorMsg('รายการนี้อยู่ในล็อตที่รับเงินแล้ว — กด "ยกเลิกการรับ" ที่ประวัติการเคลียร์ก่อน แล้วค่อยยกเลิกเคลียร์');
+      const targets = entries.filter((e) => ids.includes(e.id));
+      if (targets.length === 0) return;
+      const blocked = targets.some((e) => {
+        const b = e.batch_id ? batches.find((x) => x.id === e.batch_id) : null;
+        return b && b.status === 'received';
+      });
+      if (blocked) {
+        setErrorMsg('มีรายการที่อยู่ในล็อตที่รับเงินแล้ว — กด "ยกเลิกการรับ" ที่ประวัติการเคลียร์ก่อน แล้วค่อยยกเลิกเคลียร์');
         return;
       }
-      if (batch) {
-        const rowsLeft = batch.rows.filter((r) => r.id !== id);
+      // ปรับล็อตที่เกี่ยวข้อง: ตัดรายการออก ถ้าไม่เหลือให้ลบล็อต
+      const batchIds = [...new Set(targets.map((e) => e.batch_id).filter(Boolean))];
+      let nextBatches = batches;
+      for (const bid of batchIds) {
+        const batch = batches.find((b) => b.id === bid);
+        if (!batch) continue;
+        const rowsLeft = batch.rows.filter((r) => !ids.includes(r.id));
         if (rowsLeft.length === 0) {
-          await deleteDocData('clearance_batches', batch.id);
-          setBatches((prev) => prev.filter((b) => b.id !== batch.id));
+          await deleteDocData('clearance_batches', bid);
+          nextBatches = nextBatches.filter((b) => b.id !== bid);
         } else {
           const nb = { ...batch, rows: rowsLeft, row_ids: rowsLeft.map((r) => r.id), count: rowsLeft.length,
-            total: rowsLeft.reduce((s, r) => s + (parseFloat(r.expense_amount) || 0), 0) };
-          await setDocData('clearance_batches', batch.id, nb);
-          setBatches((prev) => prev.map((b) => (b.id === batch.id ? nb : b)));
+            total: rowsLeft.reduce((sum, r) => sum + (parseFloat(r.expense_amount) || 0), 0) };
+          await setDocData('clearance_batches', bid, nb);
+          nextBatches = nextBatches.map((b) => (b.id === bid ? nb : b));
         }
       }
-      const updated = { ...stripRow(record), cleared: false, batch_id: '' };
-      await setDocData('expense_entries', id, updated);
-      setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      await Promise.all(targets.map((r) => setDocData('expense_entries', r.id, { ...stripRow(r), cleared: false, batch_id: '' })));
+      setBatches(nextBatches);
+      setEntries((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, cleared: false, batch_id: '' } : e)));
       setErrorMsg('');
     } catch (err) {
       console.error(err);
       setErrorMsg('ยกเลิกการเคลียร์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     }
   }
+
+  function handleUnclear(id) { return handleUnclearMany([id]); }
 
   async function handleMarkReceived(batch) {
     try {
@@ -285,7 +296,7 @@ export default function ExpenseReportPage({ searchQuery }) {
       </Card>
 
       {!loading && <ReconcileCard entries={entries} opening={opening} batches={batches} />}
-      {!loading && <BatchHistoryCard batches={batches} onMarkReceived={handleMarkReceived} onUndoReceived={handleUndoReceived} onDownload={handleDownloadBatch} />}
+      {!loading && <BatchHistoryCard batches={batches} onMarkReceived={handleMarkReceived} onUndoReceived={handleUndoReceived} onUnclearRows={handleUnclearMany} onDownload={handleDownloadBatch} />}
 
       {errorMsg && <div className="mb-4 text-sm bg-red-50 text-red-700 border border-red-200 rounded px-3 py-2 flex items-center gap-2"><IconAlertCircle size={14} /> {errorMsg}</div>}
       {loading ? (

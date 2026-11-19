@@ -3,9 +3,10 @@ import Card, { MUTED, BORDER } from './Card';
 import { IconDownload } from './Icons';
 import { formatMoney, formatThaiDateShort } from '../lib/format';
 
-export default function BatchHistoryCard({ batches, onMarkReceived, onUndoReceived, onDownload }) {
+export default function BatchHistoryCard({ batches, onMarkReceived, onUndoReceived, onUnclearRows, onDownload }) {
   const [openId, setOpenId] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [picked, setPicked] = useState(new Set());
   const sorted = [...batches].sort((a, b) => (b.created_at || '') < (a.created_at || '') ? -1 : 1);
 
   async function run(id, fn, arg) {
@@ -51,8 +52,25 @@ export default function BatchHistoryCard({ batches, onMarkReceived, onUndoReceiv
                 {openId === b.id && (
                   <div className="mt-2 text-xs" style={{ color: '#475569' }}>
                     {(b.rows || []).map((r) => (
-                      <p key={r.id}>• {formatThaiDateShort(r.transaction_date)} {r.company_name || ''} {r.description || ''} — ฿{formatMoney(r.expense_amount)}</p>
+                      <label key={r.id} className="flex items-start gap-2 py-0.5" style={{ cursor: received ? 'default' : 'pointer' }}>
+                        {!received && (
+                          <input type="checkbox" className="mt-0.5" checked={picked.has(r.id)}
+                            onChange={() => setPicked((prev) => { const n = new Set(prev); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })} />
+                        )}
+                        <span>{formatThaiDateShort(r.transaction_date)} {r.company_name || ''} {r.description || ''} — ฿{formatMoney(r.expense_amount)}</span>
+                      </label>
                     ))}
+                    {received ? (
+                      <p className="mt-1" style={{ color: MUTED }}>ล็อตนี้รับเงินแล้ว — กด "ยกเลิกการรับ" ก่อนจึงจะยกเลิกเคลียร์รายการได้</p>
+                    ) : (
+                      (b.rows || []).some((r) => picked.has(r.id)) && (
+                        <button disabled={busyId === b.id}
+                          onClick={() => run(b.id, async () => { const ids = (b.rows || []).filter((r) => picked.has(r.id)).map((r) => r.id); await onUnclearRows(ids); setPicked(new Set()); })}
+                          className="mt-2 text-xs rounded-[8px] px-3 py-1 text-white disabled:opacity-50" style={{ background: '#dc2626' }}>
+                          ยกเลิกเคลียร์รายการที่เลือก ({(b.rows || []).filter((r) => picked.has(r.id)).length})
+                        </button>
+                      )
+                    )}
                   </div>
                 )}
               </div>
